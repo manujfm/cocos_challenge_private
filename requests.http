@@ -1,0 +1,35 @@
+@baseUrl = http://localhost:3000/api/v1
+
+### Portfolio del usuario del seed
+GET {{baseUrl}}/users/1/portfolio
+
+### Buscar por ticker o nombre
+GET {{baseUrl}}/instruments?q=YPF&limit=20&offset=0
+
+### Compra MARKET; repetir la misma clave y cuerpo devuelve la orden original
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: demo-market-buy-001
+
+{"instrumentId":47,"side":"BUY","type":"MARKET","size":1}
+
+### Compra LIMIT por presupuesto
+# @name limitOrder
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: demo-limit-buy-001
+
+{"instrumentId":47,"side":"BUY","type":"LIMIT","amount":"2000.00","price":"900.00"}
+
+### Consultar estado de la orden LIMIT
+GET {{baseUrl}}/users/1/orders/{{limitOrder.response.body.id}}
+
+### Cancelar orden LIMIT
+PATCH {{baseUrl}}/users/1/orders/{{limitOrder.response.body.id}}/cancel
+
+### Venta MARKET
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+Idempotency-Key: demo-market-sell-001
+
+{"instrumentId":47,"side":"SELL","type":"MARKET","size":1}
