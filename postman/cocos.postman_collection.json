@@ -1,0 +1,113 @@
+{
+  "info": {
+    "name": "Cocos Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Ejemplos básicos de los cinco endpoints de la API. Iniciar la API local con el seed cargado. Crear orden guarda automáticamente orderId para consultar y cancelar. La cancelación requiere que la orden haya quedado NEW; si faltan fondos queda REJECTED. Las solicitudes de creación y cancelación modifican la base."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "instrumentId",
+      "value": "47",
+      "type": "string"
+    },
+    {
+      "key": "search",
+      "value": "YPF",
+      "type": "string"
+    },
+    {
+      "key": "limitPrice",
+      "value": "900.00",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Portfolio",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/users/{{userId}}/portfolio"
+      },
+      "response": []
+    },
+    {
+      "name": "Buscar instrumentos",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/instruments?q={{search}}&limit=20&offset=0"
+      },
+      "response": []
+    },
+    {
+      "name": "Crear orden",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/users/{{userId}}/orders",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"instrumentId\": {{instrumentId}},\n  \"side\": \"BUY\",\n  \"type\": \"LIMIT\",\n  \"size\": 1,\n  \"price\": \"{{limitPrice}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('orderId', String(pm.response.json().id));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consultar orden",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/users/{{userId}}/orders/{{orderId}}"
+      },
+      "response": []
+    },
+    {
+      "name": "Cancelar orden",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "url": "{{baseUrl}}/users/{{userId}}/orders/{{orderId}}/cancel"
+      },
+      "response": []
+    }
+  ]
+}
