@@ -2,8 +2,10 @@ import { Pool, PoolClient } from 'pg';
 import { TradingSession, TradingStore, IdempotencyRecord } from '../../application/ports';
 import {
   BusinessError,
+  ErrorCode,
   Instrument,
   InstrumentType,
+  NewOrder,
   Order,
   Snapshot,
   OrderStatus,
@@ -22,7 +24,7 @@ class PostgresSession implements TradingSession {
       [this.userId],
     );
     const instruments = await this.db.query<Instrument>(
-      'SELECT id,ticker,name,type FROM instruments',
+      'SELECT id,ticker,name,type FROM instruments ORDER BY ticker,id',
     );
     const quotes = await this.db
       .query(`SELECT DISTINCT ON (instrumentid) instrumentid AS "instrumentId", close::text,
@@ -46,7 +48,7 @@ class PostgresSession implements TradingSession {
     );
   }
 
-  async insertOrder(o: Omit<Order, 'id' | 'userId' | 'datetime'>): Promise<Order> {
+  async insertOrder(o: NewOrder): Promise<Order> {
     return (
       await this.db.query<Order>(
         `INSERT INTO orders(userid,instrumentid,size,price,side,type,status,datetime,rejection_reason)
@@ -104,12 +106,11 @@ export class PostgresTradingStore extends TradingStore {
           : 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY',
       );
       await client.query("SET LOCAL lock_timeout = '8s'");
-      // A database row lock serializes all account changes, including across API replicas.
       const user = await client.query(
         `SELECT id FROM users WHERE id=$1 ${lockUser ? 'FOR UPDATE' : ''}`,
         [userId],
       );
-      if (!user.rowCount) throw new BusinessError('USER_NOT_FOUND', 'User not found', 404);
+      if (!user.rowCount) throw new BusinessError(ErrorCode.USER_NOT_FOUND, 'User not found', 404);
       const result = await work(new PostgresSession(client, userId));
       await client.query('COMMIT');
       return result;

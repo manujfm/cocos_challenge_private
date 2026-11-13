@@ -34,12 +34,11 @@ export class TradingController {
     @Headers('idempotency-key') key: string | undefined,
     @Body() body: unknown,
   ) {
-    if (!key || key.length > 128) {
-      throw new BadRequestException(
-        'Idempotency-Key is required and must not exceed 128 characters',
-      );
+    // Optional: when present, retries with the same key return the original order.
+    if (key !== undefined && (key.length === 0 || key.length > 128)) {
+      throw new BadRequestException('Idempotency-Key must have between 1 and 128 characters');
     }
-    return this.trading.place(userId, key, orderSchema.parse(body));
+    return this.trading.place(userId, orderSchema.parse(body), key);
   }
 
   @Get('users/:userId/orders/:orderId')

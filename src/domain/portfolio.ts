@@ -1,28 +1,33 @@
-import Decimal from 'decimal.js';
+import { cashBalance, shareBalance } from './balance';
 import {
-  availability,
-  BusinessError,
   Instrument,
   InstrumentType,
-  money,
   Order,
-  OrderStatus,
   OrderSide,
+  OrderStatus,
+  Quote,
   Snapshot,
 } from './model';
+import { Decimal, money } from './money';
 
 export function buildPortfolio(snapshot: Snapshot) {
-  const balance = availability(snapshot.orders);
-  const positions = [];
-  for (const instrument of snapshot.instruments) {
-    if (instrument.type === InstrumentType.MONEDA) continue;
+  const balance = cashBalance(snapshot.orders);
+  const ordersByInstrument = groupByInstrument(snapshot.orders);
+  const quotes = new Map(snapshot.quotes.map((quote) => [quote.instrumentId, quote]));
 
-    const position = buildPosition(instrument, snapshot);
-    if (position) positions.push(position);
-  }
+  const positions = snapshot.instruments
+    .filter((instrument) => instrument.type !== InstrumentType.MONEDA)
+    .map((instrument) =>
+      buildPosition(
+        instrument,
+        ordersByInstrument.get(instrument.id) ?? [],
+        quotes.get(instrument.id),
+      ),
+    )
+    .filter((position) => position !== null);
 
   const positionsValue = positions.reduce(
-    (total, position) => total.plus(position.marketValue),
+    (total, position) => (position.marketValue === null ? total : total.plus(position.marketValue)),
     new Decimal(0),
   );
 
@@ -37,36 +42,42 @@ export function buildPortfolio(snapshot: Snapshot) {
   };
 }
 
-function buildPosition(instrument: Instrument, snapshot: Snapshot) {
-  const { quantity, costBasis } = calculateHolding(instrument.id, snapshot.orders);
+function groupByInstrument(orders: Order[]) {
+  const groups = new Map<number, Order[]>();
+  for (const order of orders) {
+    const group = groups.get(order.instrumentId) ?? [];
+    group.push(order);
+    groups.set(order.instrumentId, group);
+  }
+  return groups;
+}
+
+function buildPosition(instrument: Instrument, orders: Order[], quote: Quote | undefined) {
+  const { quantity, costBasis } = calculateHolding(orders);
   if (quantity === 0) return null;
 
-  const quote = snapshot.quotes.find((quote) => quote.instrumentId === instrument.id);
-  if (!quote) throw new BusinessError('PRICE_UNAVAILABLE', `No quote for ${instrument.ticker}`);
-
-  const marketValue = new Decimal(quote.close).mul(quantity);
-  const availableQuantity = availability(snapshot.orders, instrument.id).availableShares;
+  const marketValue = quote ? new Decimal(quote.close).mul(quantity) : null;
+  const isLong = quantity > 0;
 
   return {
     instrumentId: instrument.id,
     ticker: instrument.ticker,
     name: instrument.name,
     quantity,
-    availableQuantity,
-    marketPrice: money(quote.close),
-    marketValue: money(marketValue),
-    costBasis: quantity > 0 ? money(costBasis) : null,
-    returnPercent: quantity > 0 ? calculateReturnPercent(marketValue, costBasis) : null,
-    dailyReturnPercent: calculateReturnPercent(quote.close, quote.previousClose),
-    quoteDate: quote.date,
+    availableQuantity: shareBalance(orders, instrument.id).availableShares,
+    marketPrice: quote ? money(quote.close) : null,
+    marketValue: marketValue ? money(marketValue) : null,
+    costBasis: isLong ? money(costBasis) : null,
+    returnPercent: isLong && marketValue ? calculateReturnPercent(marketValue, costBasis) : null,
+    dailyReturnPercent: quote ? calculateReturnPercent(quote.close, quote.previousClose) : null,
+    quoteDate: quote?.date ?? null,
   };
 }
 
-function calculateHolding(instrumentId: number, orders: Order[]) {
-  const filledOrders = orders
+function calculateHolding(orders: Order[]) {
+  const trades = orders
     .filter(
       (order) =>
-        order.instrumentId === instrumentId &&
         order.status === OrderStatus.FILLED &&
         (order.side === OrderSide.BUY || order.side === OrderSide.SELL),
     )
@@ -75,14 +86,14 @@ function calculateHolding(instrumentId: number, orders: Order[]) {
   let quantity = 0;
   let costBasis = new Decimal(0);
 
-  for (const order of filledOrders) {
-    if (order.side === OrderSide.BUY) {
-      quantity += order.size;
-      costBasis = costBasis.plus(new Decimal(order.price).mul(order.size));
+  for (const trade of trades) {
+    if (trade.side === OrderSide.BUY) {
+      quantity += trade.size;
+      costBasis = costBasis.plus(new Decimal(trade.price).mul(trade.size));
     } else {
       const averageCost = quantity > 0 ? costBasis.div(quantity) : new Decimal(0);
-      quantity -= order.size;
-      costBasis = costBasis.minus(averageCost.mul(order.size));
+      quantity -= trade.size;
+      costBasis = costBasis.minus(averageCost.mul(trade.size));
     }
   }
 
