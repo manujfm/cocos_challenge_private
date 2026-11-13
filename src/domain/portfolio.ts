@@ -52,13 +52,11 @@ function groupByInstrument(orders: Order[]) {
   return groups;
 }
 
-/** `orders` must belong to `instrument`. Returns null for closed positions. */
 function buildPosition(instrument: Instrument, orders: Order[], quote: Quote | undefined) {
   const { quantity, costBasis } = calculateHolding(orders);
   if (quantity === 0) return null;
 
   const marketValue = quote ? new Decimal(quote.close).mul(quantity) : null;
-  // Short positions (only present in legacy seed data) have no meaningful cost or return.
   const isLong = quantity > 0;
 
   return {
@@ -76,8 +74,8 @@ function buildPosition(instrument: Instrument, orders: Order[], quote: Quote | u
   };
 }
 
-function calculateHolding(instrumentId: number, orders: Order[]) {
-  const filledOrders = orders
+function calculateHolding(orders: Order[]) {
+  const trades = orders
     .filter(
       (order) =>
         order.status === OrderStatus.FILLED &&

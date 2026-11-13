@@ -1,4 +1,4 @@
-import { BusinessError, OrderStatus, PlaceOrder } from '../domain/model';
+import { BusinessError, ErrorCode, OrderStatus, PlaceOrder } from '../domain/model';
 import { evaluateOrder } from '../domain/order-evaluation';
 import { buildPortfolio } from '../domain/portfolio';
 import { createOrderFingerprint } from './order-fingerprint';
@@ -7,10 +7,7 @@ import { TradingSession, TradingStore } from './ports';
 export class TradingService {
   constructor(private readonly store: TradingStore) {}
 
-  /**
-   * Creates an order. With an idempotency key, a retried request returns the original order
-   * instead of creating a duplicate; reusing the key with a different body is a conflict.
-   */
+
   place(userId: number, input: PlaceOrder, idempotencyKey?: string) {
     return this.store.withUserTransaction(userId, async (session) => {
       if (!idempotencyKey) return this.createOrder(session, input);
@@ -20,7 +17,7 @@ export class TradingService {
       if (existing) {
         if (existing.fingerprint !== fingerprint)
           throw new BusinessError(
-            'IDEMPOTENCY_CONFLICT',
+            ErrorCode.IDEMPOTENCY_CONFLICT,
             'Key already used with a different request',
             409,
           );
@@ -40,7 +37,7 @@ export class TradingService {
   getOrder(userId: number, orderId: number) {
     return this.store.readUser(userId, async (s) => {
       const order = await s.getOrder(orderId);
-      if (!order) throw new BusinessError('ORDER_NOT_FOUND', 'Order not found', 404);
+      if (!order) throw new BusinessError(ErrorCode.ORDER_NOT_FOUND, 'Order not found', 404);
       return order;
     });
   }
@@ -48,10 +45,14 @@ export class TradingService {
   cancel(userId: number, orderId: number) {
     return this.store.withUserTransaction(userId, async (s) => {
       const order = await s.getOrder(orderId);
-      if (!order) throw new BusinessError('ORDER_NOT_FOUND', 'Order not found', 404);
+      if (!order) throw new BusinessError(ErrorCode.ORDER_NOT_FOUND, 'Order not found', 404);
       if (order.status === OrderStatus.CANCELLED) return order;
       if (order.status !== OrderStatus.NEW)
-        throw new BusinessError('ORDER_NOT_CANCELLABLE', 'Only NEW orders can be cancelled', 409);
+        throw new BusinessError(
+          ErrorCode.ORDER_NOT_CANCELLABLE,
+          'Only NEW orders can be cancelled',
+          409,
+        );
       return s.cancelOrder(orderId);
     });
   }

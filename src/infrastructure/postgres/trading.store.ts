@@ -2,6 +2,7 @@ import { Pool, PoolClient } from 'pg';
 import { TradingSession, TradingStore, IdempotencyRecord } from '../../application/ports';
 import {
   BusinessError,
+  ErrorCode,
   Instrument,
   InstrumentType,
   NewOrder,
@@ -105,12 +106,11 @@ export class PostgresTradingStore extends TradingStore {
           : 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY',
       );
       await client.query("SET LOCAL lock_timeout = '8s'");
-      // A database row lock serializes all account changes, including across API replicas.
       const user = await client.query(
         `SELECT id FROM users WHERE id=$1 ${lockUser ? 'FOR UPDATE' : ''}`,
         [userId],
       );
-      if (!user.rowCount) throw new BusinessError('USER_NOT_FOUND', 'User not found', 404);
+      if (!user.rowCount) throw new BusinessError(ErrorCode.USER_NOT_FOUND, 'User not found', 404);
       const result = await work(new PostgresSession(client, userId));
       await client.query('COMMIT');
       return result;

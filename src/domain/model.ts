@@ -34,7 +34,6 @@ export interface Order {
   rejectionReason?: string | null;
 }
 
-/** An order ready to be persisted; the database assigns id, owner and timestamp. */
 export type NewOrder = Omit<Order, 'id' | 'userId' | 'datetime'>;
 
 export interface Instrument {
@@ -65,9 +64,23 @@ export interface PlaceOrder {
   price?: string;
 }
 
+export enum ErrorCode {
+  INSTRUMENT_NOT_FOUND = 'INSTRUMENT_NOT_FOUND',
+  INVALID_INSTRUMENT = 'INVALID_INSTRUMENT',
+  PRICE_UNAVAILABLE = 'PRICE_UNAVAILABLE',
+  INVALID_SIZE = 'INVALID_SIZE',
+  IDEMPOTENCY_CONFLICT = 'IDEMPOTENCY_CONFLICT',
+  ORDER_NOT_FOUND = 'ORDER_NOT_FOUND',
+  ORDER_NOT_CANCELLABLE = 'ORDER_NOT_CANCELLABLE',
+  USER_NOT_FOUND = 'USER_NOT_FOUND',
+  INVALID_REQUEST = 'INVALID_REQUEST',
+  TEMPORARILY_UNAVAILABLE = 'TEMPORARILY_UNAVAILABLE',
+  INTERNAL_ERROR = 'INTERNAL_ERROR',
+}
+
 export class BusinessError extends Error {
   constructor(
-    public readonly code: string,
+    public readonly code: ErrorCode,
     message: string,
     public readonly status: number = 422,
   ) {

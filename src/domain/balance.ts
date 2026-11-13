@@ -3,7 +3,6 @@ import { Order, OrderSide, OrderStatus } from './model';
 
 const orderTotal = (order: Order) => new Decimal(order.price).mul(order.size);
 
-/** Cash comes from FILLED movements; NEW buys reserve cash until they are cancelled. */
 export function cashBalance(orders: Order[]) {
   let cash = new Decimal(0);
   let reservedCash = new Decimal(0);
@@ -17,7 +16,6 @@ export function cashBalance(orders: Order[]) {
   return { cash, reservedCash, availableCash: cash.minus(reservedCash) };
 }
 
-/** Transfers move `size` pesos; trades move `size * price`. */
 function cashEffect(order: Order): Decimal {
   switch (order.side) {
     case OrderSide.CASH_IN:
@@ -33,7 +31,6 @@ function cashEffect(order: Order): Decimal {
   }
 }
 
-/** Shares come from FILLED trades; NEW sells reserve shares until they are cancelled. */
 export function shareBalance(orders: Order[], instrumentId: number) {
   let shares = 0;
   let reservedShares = 0;
