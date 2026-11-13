@@ -6,18 +6,23 @@ GET {{baseUrl}}/users/1/portfolio
 ### Buscar por ticker o nombre
 GET {{baseUrl}}/instruments?q=YPF&limit=20&offset=0
 
-### Compra MARKET; repetir la misma clave y cuerpo devuelve la orden original
+### Compra MARKET por cantidad
+POST {{baseUrl}}/users/1/orders
+Content-Type: application/json
+
+{"instrumentId":47,"side":"BUY","type":"MARKET","size":1}
+
+### Compra MARKET con Idempotency-Key opcional; repetirla devuelve la orden original
 POST {{baseUrl}}/users/1/orders
 Content-Type: application/json
 Idempotency-Key: demo-market-buy-001
 
 {"instrumentId":47,"side":"BUY","type":"MARKET","size":1}
 
-### Compra LIMIT por presupuesto
+### Compra LIMIT por monto
 # @name limitOrder
 POST {{baseUrl}}/users/1/orders
 Content-Type: application/json
-Idempotency-Key: demo-limit-buy-001
 
 {"instrumentId":47,"side":"BUY","type":"LIMIT","amount":"2000.00","price":"900.00"}
 

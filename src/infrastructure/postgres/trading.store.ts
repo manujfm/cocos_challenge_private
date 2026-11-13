@@ -4,6 +4,7 @@ import {
   BusinessError,
   Instrument,
   InstrumentType,
+  NewOrder,
   Order,
   Snapshot,
   OrderStatus,
@@ -22,7 +23,7 @@ class PostgresSession implements TradingSession {
       [this.userId],
     );
     const instruments = await this.db.query<Instrument>(
-      'SELECT id,ticker,name,type FROM instruments',
+      'SELECT id,ticker,name,type FROM instruments ORDER BY ticker,id',
     );
     const quotes = await this.db
       .query(`SELECT DISTINCT ON (instrumentid) instrumentid AS "instrumentId", close::text,
@@ -46,7 +47,7 @@ class PostgresSession implements TradingSession {
     );
   }
 
-  async insertOrder(o: Omit<Order, 'id' | 'userId' | 'datetime'>): Promise<Order> {
+  async insertOrder(o: NewOrder): Promise<Order> {
     return (
       await this.db.query<Order>(
         `INSERT INTO orders(userid,instrumentid,size,price,side,type,status,datetime,rejection_reason)

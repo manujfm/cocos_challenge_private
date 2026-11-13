@@ -1,14 +1,22 @@
-import { BusinessError, evaluateOrder, PlaceOrder, OrderStatus } from '../domain/model';
+import { BusinessError, OrderStatus, PlaceOrder } from '../domain/model';
+import { evaluateOrder } from '../domain/order-evaluation';
 import { buildPortfolio } from '../domain/portfolio';
 import { createOrderFingerprint } from './order-fingerprint';
-import { TradingStore } from './ports';
+import { TradingSession, TradingStore } from './ports';
+
 export class TradingService {
   constructor(private readonly store: TradingStore) {}
 
-  place(userId: number, key: string, input: PlaceOrder) {
-    const fingerprint = createOrderFingerprint(input);
+  /**
+   * Creates an order. With an idempotency key, a retried request returns the original order
+   * instead of creating a duplicate; reusing the key with a different body is a conflict.
+   */
+  place(userId: number, input: PlaceOrder, idempotencyKey?: string) {
     return this.store.withUserTransaction(userId, async (session) => {
-      const existing = await session.findRequest(key);
+      if (!idempotencyKey) return this.createOrder(session, input);
+
+      const fingerprint = createOrderFingerprint(input);
+      const existing = await session.findRequest(idempotencyKey);
       if (existing) {
         if (existing.fingerprint !== fingerprint)
           throw new BusinessError(
@@ -18,8 +26,9 @@ export class TradingService {
           );
         return existing.response;
       }
-      const order = await session.insertOrder(evaluateOrder(input, await session.snapshot()));
-      await session.saveRequest(key, fingerprint, order);
+
+      const order = await this.createOrder(session, input);
+      await session.saveRequest(idempotencyKey, fingerprint, order);
       return order;
     });
   }
@@ -49,5 +58,9 @@ export class TradingService {
 
   search(query: string, limit: number, offset: number) {
     return this.store.search(query, limit, offset);
+  }
+
+  private async createOrder(session: TradingSession, input: PlaceOrder) {
+    return session.insertOrder(evaluateOrder(input, await session.snapshot()));
   }
 }
